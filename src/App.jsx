@@ -248,6 +248,7 @@ const STYLE = `
     line-height: 1.4;
   }
   .gs-upload-box {
+    position: relative;
     border: 2px dashed var(--moss-mid);
     border-radius: 16px;
     padding: 30px 16px;
@@ -256,7 +257,17 @@ const STYLE = `
     color: var(--moss-deep);
     background: var(--moss-light);
   }
-  .gs-upload-box input { display: none; }
+  .gs-upload-box input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   .gs-tap-photo {
     position: relative;
@@ -372,6 +383,13 @@ const STYLE = `
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
+// In produzione si può fotografare solo dal vivo (fotocamera forzata).
+// In sviluppo si può anche scegliere una foto già salvata, per testare comodamente.
+// Si controlla con la variabile d'ambiente VITE_DEV_MODE nel file .env:
+//   VITE_DEV_MODE=true   -> permette di scegliere dalla libreria (per i test)
+//   assente o "false"    -> forza la fotocamera (comportamento di gioco reale)
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
+
 function getDeviceId() {
   try {
     let id = localStorage.getItem("gs_device_id");
@@ -440,9 +458,7 @@ function AnimalSprite({ animal, onTap }) {
         </div>
       </div>
       <div className="gs-sprite-shadow" />
-      <span className="gs-sprite-name" style={{ transform: `scaleX(${animal.facing})` }}>
-        {animal.name}
-      </span>
+      <span className="gs-sprite-name">{animal.name}</span>
     </button>
   );
 }
@@ -740,9 +756,20 @@ export default function GiardinoSelvatico() {
                 </p>
                 <label className="gs-upload-box">
                   <Camera size={26} style={{ marginBottom: 8 }} />
-                  <div style={{ fontWeight: 700 }}>Tocca per scegliere una foto</div>
-                  <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
+                  <div style={{ fontWeight: 700 }}>
+                    {DEV_MODE ? "Tocca per scegliere una foto" : "Tocca per scattare una foto"}
+                  </div>
+                  {DEV_MODE ? (
+                    <input type="file" accept="image/*" onChange={handleFile} />
+                  ) : (
+                    <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
+                  )}
                 </label>
+                {DEV_MODE && (
+                  <p className="gs-mini-note" style={{ marginTop: 8 }}>
+                    Modalità sviluppo attiva: puoi scegliere anche dalla libreria foto.
+                  </p>
+                )}
               </>
             )}
 
