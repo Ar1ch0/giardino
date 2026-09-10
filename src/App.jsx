@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2, Mail, LogOut, PartyPopper } from "lucide-react";
+import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2, LogOut } from "lucide-react";
 import { supabase, MEDIA_BUCKET, isSupabaseConfigured } from "./supabaseClient";
 
 const STYLE = `
@@ -249,6 +249,10 @@ const STYLE = `
   }
   .gs-upload-box {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-content: center;
+    align-items: center;
     border: 2px dashed var(--moss-mid);
     border-radius: 16px;
     padding: 30px 16px;
@@ -438,23 +442,41 @@ async function uploadToStorage(path, blob) {
 }
 
 function LoginScreen() {
+  const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [signupDone, setSignupDone] = useState(false);
 
-  const sendLink = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    setSending(true);
+    if (!email.trim() || !password) return;
+    setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setSending(false);
-    if (error) setError(error.message);
-    else setSent(true);
+
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      setLoading(false);
+      if (error) setError(error.message);
+      // se va a buon fine, onAuthStateChange aggiorna la sessione da solo
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message);
+      } else if (!data.session) {
+        // il progetto Supabase richiede ancora la conferma via email
+        setSignupDone(true);
+      }
+      // se data.session esiste, sei già dentro: onAuthStateChange fa il resto
+    }
   };
 
   return (
@@ -464,12 +486,18 @@ function LoginScreen() {
         <h1 className="gs-title gs-heading" style={{ fontSize: 26, marginTop: 10 }}>
           Giardino Selvatico
         </h1>
-        {!sent ? (
+
+        {signupDone ? (
+          <p className="gs-step-desc" style={{ textAlign: "center" }}>
+            Account creato. Il progetto richiede ancora la conferma via email: controlla
+            la posta, poi torna qui e accedi con email e password.
+          </p>
+        ) : (
           <>
             <p className="gs-step-desc" style={{ textAlign: "center" }}>
-              Inserisci la tua email: ti mandiamo un link per entrare, senza password.
+              {mode === "signin" ? "Accedi al tuo giardino." : "Crea un account nuovo."}
             </p>
-            <form onSubmit={sendLink} style={{ width: "100%" }}>
+            <form onSubmit={submit} style={{ width: "100%" }}>
               <input
                 className="gs-input"
                 type="email"
@@ -477,20 +505,37 @@ function LoginScreen() {
                 placeholder="tuaemail@esempio.it"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
               />
-              <button className="gs-primary-btn" type="submit" disabled={sending}>
-                <Mail size={17} /> {sending ? "Invio…" : "Mandami il link"}
+              <input
+                className="gs-input"
+                type="password"
+                required
+                minLength={6}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              />
+              <button className="gs-primary-btn" type="submit" disabled={loading}>
+                <Check size={17} />
+                {loading ? "Un attimo…" : mode === "signin" ? "Accedi" : "Registrati"}
               </button>
             </form>
-            {error && <p className="gs-mini-note" style={{ color: "var(--coral)", marginTop: 8 }}>{error}</p>}
-          </>
-        ) : (
-          <>
-            <PartyPopper size={28} style={{ color: "var(--sun)", margin: "10px 0" }} />
-            <p className="gs-step-desc" style={{ textAlign: "center" }}>
-              Controlla la tua email ({email}) e clicca il link che ti abbiamo mandato
-              per entrare nel tuo giardino.
-            </p>
+            {error && (
+              <p className="gs-mini-note" style={{ color: "var(--coral)", marginTop: 8 }}>
+                {error}
+              </p>
+            )}
+            <button
+              className="gs-secondary-btn"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError(null);
+              }}
+            >
+              {mode === "signin" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
+            </button>
           </>
         )}
       </div>
