@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2 } from "lucide-react";
+import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2, Mail, LogOut, PartyPopper } from "lucide-react";
 import { supabase, MEDIA_BUCKET, isSupabaseConfigured } from "./supabaseClient";
 
 const STYLE = `
@@ -379,6 +379,39 @@ const STYLE = `
   }
   .gs-spin { animation: gsSpin 0.8s linear infinite; }
   @keyframes gsSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .gs-login-wrap {
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gs-login-card {
+    background: var(--paper);
+    border-radius: 20px;
+    padding: 32px 26px;
+    max-width: 340px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(33,48,33,0.15);
+  }
+
+  .gs-logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: var(--paper);
+    color: var(--soil);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(33,48,33,0.15);
+  }
 `;
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -389,22 +422,6 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 //   VITE_DEV_MODE=true   -> permette di scegliere dalla libreria (per i test)
 //   assente o "false"    -> forza la fotocamera (comportamento di gioco reale)
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
-
-function getDeviceId() {
-  try {
-    let id = localStorage.getItem("gs_device_id");
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem("gs_device_id", id);
-    }
-    return id;
-  } catch (e) {
-    // localStorage non disponibile (es. anteprima in ambiente sandbox):
-    // usa un id in memoria valido solo per la sessione corrente.
-    if (!window.__gsDeviceId) window.__gsDeviceId = crypto.randomUUID();
-    return window.__gsDeviceId;
-  }
-}
 
 async function urlToBlob(url) {
   const res = await fetch(url);
@@ -418,6 +435,67 @@ async function uploadToStorage(path, blob) {
   if (error) throw error;
   const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
+
+  const sendLink = async (e) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSending(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setSending(false);
+    if (error) setError(error.message);
+    else setSent(true);
+  };
+
+  return (
+    <div className="gs-login-wrap">
+      <div className="gs-login-card">
+        <PawPrint size={34} style={{ color: "var(--moss-deep)" }} />
+        <h1 className="gs-title gs-heading" style={{ fontSize: 26, marginTop: 10 }}>
+          Giardino Selvatico
+        </h1>
+        {!sent ? (
+          <>
+            <p className="gs-step-desc" style={{ textAlign: "center" }}>
+              Inserisci la tua email: ti mandiamo un link per entrare, senza password.
+            </p>
+            <form onSubmit={sendLink} style={{ width: "100%" }}>
+              <input
+                className="gs-input"
+                type="email"
+                required
+                placeholder="tuaemail@esempio.it"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <button className="gs-primary-btn" type="submit" disabled={sending}>
+                <Mail size={17} /> {sending ? "Invio…" : "Mandami il link"}
+              </button>
+            </form>
+            {error && <p className="gs-mini-note" style={{ color: "var(--coral)", marginTop: 8 }}>{error}</p>}
+          </>
+        ) : (
+          <>
+            <PartyPopper size={28} style={{ color: "var(--sun)", margin: "10px 0" }} />
+            <p className="gs-step-desc" style={{ textAlign: "center" }}>
+              Controlla la tua email ({email}) e clicca il link che ti abbiamo mandato
+              per entrare nel tuo giardino.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function AnimalSprite({ animal, onTap }) {
@@ -464,9 +542,9 @@ function AnimalSprite({ animal, onTap }) {
 }
 
 export default function GiardinoSelvatico() {
-  const deviceId = useRef(getDeviceId()).current;
   const configured = isSupabaseConfigured();
 
+  const [session, setSession] = useState(undefined); // undefined = non ancora controllato
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -488,17 +566,31 @@ export default function GiardinoSelvatico() {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
-  // Carica gli animali salvati per questo dispositivo/utente
+  // Ascolta lo stato di login (utente entrato/uscito, link magico cliccato, ecc.)
   useEffect(() => {
     if (!configured) {
       setLoading(false);
       return;
     }
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [configured]);
+
+  // Carica gli animali salvati per l'utente loggato
+  useEffect(() => {
+    if (!configured || !session?.user) {
+      if (!session) setLoading(false);
+      return;
+    }
+    setLoading(true);
     (async () => {
       const { data, error } = await supabase
         .from("animals")
         .select("*")
-        .eq("device_id", deviceId)
+        .eq("user_id", session.user.id)
         .order("created_at", { ascending: true });
       if (error) {
         setLoadError(true);
@@ -520,7 +612,7 @@ export default function GiardinoSelvatico() {
       }
       setLoading(false);
     })();
-  }, [configured, deviceId]);
+  }, [configured, session]);
 
   // Movimento autonomo (solo visuale, non salvato)
   useEffect(() => {
@@ -631,20 +723,21 @@ export default function GiardinoSelvatico() {
   };
 
   const addAnimal = async () => {
-    if (!draftPhotoFile || !draftEyes || !draftMouth) return;
+    if (!draftPhotoFile || !draftEyes || !draftMouth || !session?.user) return;
     setSaving(true);
     try {
+      const userId = session.user.id;
       const id = crypto.randomUUID();
-      const photoUrl = await uploadToStorage(`${deviceId}/${id}-photo.jpg`, draftPhotoFile);
+      const photoUrl = await uploadToStorage(`${userId}/${id}-photo.jpg`, draftPhotoFile);
 
       let audioUrl = null;
       if (draftAudioBlob) {
-        audioUrl = await uploadToStorage(`${deviceId}/${id}-audio.webm`, draftAudioBlob);
+        audioUrl = await uploadToStorage(`${userId}/${id}-audio.webm`, draftAudioBlob);
       }
 
       const row = {
         id,
-        device_id: deviceId,
+        user_id: userId,
         name: draftName.trim() || "Senza nome",
         photo_url: photoUrl,
         eyes_x: draftEyes.x,
@@ -681,6 +774,26 @@ export default function GiardinoSelvatico() {
     }
   };
 
+  if (configured && session === undefined) {
+    return (
+      <div className="gs-root">
+        <style>{STYLE}</style>
+        <div className="gs-empty-inner" style={{ position: "static", padding: "80px 0" }}>
+          <Loader2 size={30} className="gs-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (configured && !session) {
+    return (
+      <div className="gs-root">
+        <style>{STYLE}</style>
+        <LoginScreen />
+      </div>
+    );
+  }
+
   return (
     <div className="gs-root">
       <style>{STYLE}</style>
@@ -693,9 +806,20 @@ export default function GiardinoSelvatico() {
             giardino anche se chiudi la pagina.
           </p>
         </div>
-        <button className="gs-add-btn" onClick={openModal} disabled={!configured}>
-          <Plus size={18} /> Aggiungi animale
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button className="gs-add-btn" onClick={openModal} disabled={!configured}>
+            <Plus size={18} /> Aggiungi animale
+          </button>
+          {configured && session?.user && (
+            <button
+              className="gs-logout-btn"
+              onClick={() => supabase.auth.signOut()}
+              title={session.user.email}
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {!configured && (
