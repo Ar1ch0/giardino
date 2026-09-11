@@ -435,7 +435,7 @@ async function urlToBlob(url) {
 async function uploadToStorage(path, blob) {
   const { error } = await supabase.storage
     .from(MEDIA_BUCKET)
-    .upload(path, blob, { contentType: blob.type, upsert: true });
+    .upload(path, blob, { contentType: blob.type });
   if (error) throw error;
   const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
   return data.publicUrl;
