@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2, LogOut } from "lucide-react";
+import { Plus, X, Camera, Mic, Square, Check, PawPrint, Volume2, Loader2, LogOut, ArrowLeft, ZoomIn } from "lucide-react";
 import { supabase, MEDIA_BUCKET, isSupabaseConfigured } from "./supabaseClient";
 
 const STYLE = `
@@ -156,43 +156,6 @@ const STYLE = `
   }
   .gs-photo-circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-  .gs-eye {
-    position: absolute;
-    width: 15%;
-    aspect-ratio: 1/1;
-    background: white;
-    border-radius: 50%;
-    border: 1.5px solid rgba(0,0,0,0.3);
-    transform: translate(-50%, -50%);
-    display: flex; align-items: center; justify-content: center;
-    animation: gsBlink 4s infinite;
-  }
-  .gs-eye::after {
-    content: "";
-    width: 45%; height: 45%;
-    background: #1b1b1b;
-    border-radius: 50%;
-  }
-  @keyframes gsBlink {
-    0%, 92%, 100% { transform: translate(-50%, -50%) scaleY(1); }
-    95% { transform: translate(-50%, -50%) scaleY(0.1); }
-  }
-
-  .gs-mouth {
-    position: absolute;
-    width: 22%;
-    height: 7%;
-    background: #3a1414;
-    border-radius: 50%;
-    transform: translate(-50%, -50%) scaleY(1);
-    transition: transform 0.12s ease;
-  }
-  .gs-mouth.talking { animation: gsFlap 0.28s ease-in-out infinite; }
-  @keyframes gsFlap {
-    0%, 100% { transform: translate(-50%, -50%) scaleY(1); }
-    50% { transform: translate(-50%, -50%) scaleY(3.2); }
-  }
-
   .gs-sprite-name {
     text-align: center;
     font-size: 11.5px;
@@ -222,8 +185,8 @@ const STYLE = `
     border-radius: 20px;
     padding: 24px;
     width: 100%;
-    max-width: 400px;
-    max-height: 88vh;
+    max-width: 420px;
+    max-height: 90vh;
     overflow-y: auto;
     position: relative;
   }
@@ -234,17 +197,34 @@ const STYLE = `
     width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; color: var(--moss-deep);
+    z-index: 2;
+  }
+  .gs-step-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .gs-back-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--moss-light);
+    color: var(--moss-deep);
+    cursor: pointer;
+    flex-shrink: 0;
   }
   .gs-step-title {
     font-size: 19px;
     font-weight: 800;
     color: var(--moss-deep);
-    margin: 0 0 4px;
+    margin: 0;
   }
   .gs-step-desc {
     font-size: 13.5px;
     color: var(--soil);
-    margin: 0 0 16px;
+    margin: 6px 0 16px;
     line-height: 1.4;
   }
   .gs-upload-box {
@@ -272,27 +252,6 @@ const STYLE = `
     white-space: nowrap;
     border: 0;
   }
-
-  .gs-tap-photo {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1/1;
-    border-radius: 14px;
-    overflow: hidden;
-    cursor: crosshair;
-    background: var(--moss-mid);
-  }
-  .gs-tap-photo img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
-  .gs-marker {
-    position: absolute;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    border: 2.5px solid white;
-    box-shadow: 0 0 0 1.5px var(--ink);
-  }
-  .gs-marker.eyes { background: var(--sun); }
-  .gs-marker.mouth { background: var(--coral); }
 
   .gs-badge {
     display: inline-flex; align-items: center; gap: 6px;
@@ -416,21 +375,197 @@ const STYLE = `
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(33,48,33,0.15);
   }
+
+  /* --- Ritaglio foto --- */
+  .gs-crop-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #1c2a1a;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+  }
+  .gs-crop-frame img {
+    position: absolute;
+    left: 0;
+    top: 0;
+    max-width: none;
+    pointer-events: none;
+  }
+  .gs-crop-zoom-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0 18px;
+    color: var(--moss-deep);
+  }
+  .gs-crop-zoom-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--coral);
+  }
+
+  /* --- Vassoio decorazioni (drag & drop) --- */
+  .gs-decorate-photo {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--moss-mid);
+    touch-action: none;
+  }
+  .gs-decorate-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+  .gs-tray-section { margin-top: 16px; }
+  .gs-tray-label {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--moss-deep);
+    margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .gs-tray {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .gs-tray-item {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: var(--moss-light);
+    border: 1.5px solid var(--moss-mid);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+  }
+  .gs-tray-item-shape-eye { width: 26px; height: 26px; }
+  .gs-tray-item-shape-mouth { width: 26px; height: 13px; }
+
+  .gs-decor-wrapper {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+  }
+  .gs-decor-wrapper.gs-decor-eye-wrapper { width: 15%; aspect-ratio: 1/1; }
+  .gs-decor-wrapper.gs-decor-mouth-wrapper { width: 22%; aspect-ratio: 3/1; }
+
+  .gs-decor-eye {
+    position: relative;
+    width: 100%; height: 100%;
+    background: white;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+    box-sizing: border-box;
+    animation: gsBlink 4s infinite;
+  }
+  .gs-decor-eye-pupil { width: 45%; height: 45%; background: #1b1b1b; border-radius: 50%; }
+  @keyframes gsBlink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+  }
+  .gs-decor-eye-sonno { border-radius: 50% / 35%; }
+  .gs-decor-eye-sonno .gs-decor-eye-pupil { width: 55%; height: 30%; border-radius: 50%; }
+  .gs-decor-eye-stella .gs-decor-eye-pupil {
+    background: #1b1b1b;
+    width: 68%; height: 68%; border-radius: 0;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  }
+  .gs-decor-eye-matto .gs-decor-eye-pupil {
+    width: 30%; height: 30%;
+    margin-left: 28%; margin-top: -18%;
+    background: #c0392b;
+  }
+
+  .gs-decor-mouth {
+    width: 100%; height: 100%;
+    background: #3a1414;
+    border-radius: 50%;
+    transition: transform 0.12s ease;
+  }
+  .gs-decor-mouth.talking { animation: gsFlap 0.28s ease-in-out infinite; }
+  @keyframes gsFlap {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(3.2); }
+  }
+  .gs-decor-mouth-sorriso {
+    border-radius: 0 0 100% 100% / 0 0 100% 100%;
+    height: 65%;
+    margin-top: 17%;
+  }
+  .gs-decor-mouth-becco {
+    background: var(--coral);
+    border-radius: 0;
+    clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+  }
+  .gs-decor-mouth-zanne {
+    position: relative;
+    border-radius: 50%;
+  }
+  .gs-decor-mouth-zanne::before, .gs-decor-mouth-zanne::after {
+    content: "";
+    position: absolute;
+    top: -35%;
+    width: 22%; height: 55%;
+    background: white;
+    clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+  }
+  .gs-decor-mouth-zanne::before { left: 14%; }
+  .gs-decor-mouth-zanne::after { right: 14%; }
+
+  .gs-decor-ghost {
+    position: fixed;
+    width: 46px; height: 46px;
+    pointer-events: none;
+    z-index: 200;
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+  }
+
+  .gs-remove-hint {
+    font-size: 11.5px;
+    color: var(--soil);
+    text-align: center;
+    margin-top: 8px;
+  }
 `;
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
 // In produzione si può fotografare solo dal vivo (fotocamera forzata).
 // In sviluppo si può anche scegliere una foto già salvata, per testare comodamente.
-// Si controlla con la variabile d'ambiente VITE_DEV_MODE nel file .env:
 //   VITE_DEV_MODE=true   -> permette di scegliere dalla libreria (per i test)
 //   assente o "false"    -> forza la fotocamera (comportamento di gioco reale)
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
-async function urlToBlob(url) {
-  const res = await fetch(url);
-  return res.blob();
-}
+const EYE_STYLES = [
+  { id: "tondo", label: "Tondo" },
+  { id: "sonno", label: "Assonnato" },
+  { id: "stella", label: "A stella" },
+  { id: "matto", label: "Pazzo" },
+];
+const MOUTH_STYLES = [
+  { id: "ovale", label: "Ovale" },
+  { id: "sorriso", label: "Sorriso" },
+  { id: "becco", label: "Becco" },
+  { id: "zanne", label: "Zanne" },
+];
+
+const CROP_SIZE = 320;
+const OUTPUT_SIZE = 900;
 
 async function uploadToStorage(path, blob) {
   const { error } = await supabase.storage
@@ -439,6 +574,17 @@ async function uploadToStorage(path, blob) {
   if (error) throw error;
   const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+function DecorShape({ kind, style, talking }) {
+  if (kind === "eye") {
+    return (
+      <div className={`gs-decor-eye gs-decor-eye-${style}`}>
+        <div className="gs-decor-eye-pupil" />
+      </div>
+    );
+  }
+  return <div className={`gs-decor-mouth gs-decor-mouth-${style}${talking ? " talking" : ""}`} />;
 }
 
 function LoginScreen() {
@@ -462,7 +608,6 @@ function LoginScreen() {
       });
       setLoading(false);
       if (error) setError(error.message);
-      // se va a buon fine, onAuthStateChange aggiorna la sessione da solo
     } else {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
@@ -472,10 +617,8 @@ function LoginScreen() {
       if (error) {
         setError(error.message);
       } else if (!data.session) {
-        // il progetto Supabase richiede ancora la conferma via email
         setSignupDone(true);
       }
-      // se data.session esiste, sei già dentro: onAuthStateChange fa il resto
     }
   };
 
@@ -543,14 +686,13 @@ function LoginScreen() {
   );
 }
 
-function AnimalSprite({ animal, onTap }) {
+function AnimalSprite({ animal }) {
   const [talking, setTalking] = useState(false);
   const audioRef = useRef(null);
 
   const handleTap = (e) => {
     e.stopPropagation();
     setTalking(true);
-    onTap && onTap();
     if (animal.audioUrl) {
       if (!audioRef.current) audioRef.current = new Audio(animal.audioUrl);
       audioRef.current.currentTime = 0;
@@ -571,12 +713,15 @@ function AnimalSprite({ animal, onTap }) {
         <div className={`gs-sprite-body ${animal.walking ? "walking" : "idle"}`}>
           <div className="gs-photo-circle">
             <img src={animal.photo} alt={animal.name} />
-            <div className="gs-eye" style={{ left: `${animal.eyes.x - 7}%`, top: `${animal.eyes.y}%` }} />
-            <div className="gs-eye" style={{ left: `${animal.eyes.x + 7}%`, top: `${animal.eyes.y}%` }} />
-            <div
-              className={`gs-mouth${talking ? " talking" : ""}`}
-              style={{ left: `${animal.mouth.x}%`, top: `${animal.mouth.y}%` }}
-            />
+            {(animal.decorations || []).map((d) => (
+              <div
+                key={d.id}
+                className={`gs-decor-wrapper gs-decor-${d.kind}-wrapper`}
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                <DecorShape kind={d.kind} style={d.style} talking={d.kind === "mouth" && talking} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -589,29 +734,37 @@ function AnimalSprite({ animal, onTap }) {
 export default function GiardinoSelvatico() {
   const configured = isSupabaseConfigured();
 
-  const [session, setSession] = useState(undefined); // undefined = non ancora controllato
+  const [session, setSession] = useState(undefined);
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [step, setStep] = useState("photo");
-  const [pointStage, setPointStage] = useState("eyes");
+  const [step, setStep] = useState("photo"); // photo | crop | decorate | details
   const [draftPhotoFile, setDraftPhotoFile] = useState(null);
   const [draftPhotoPreview, setDraftPhotoPreview] = useState(null);
-  const [draftEyes, setDraftEyes] = useState(null);
-  const [draftMouth, setDraftMouth] = useState(null);
+  const [draftDecorations, setDraftDecorations] = useState([]);
   const [draftName, setDraftName] = useState("");
   const [draftAudioBlob, setDraftAudioBlob] = useState(null);
   const [draftAudioPreviewUrl, setDraftAudioPreviewUrl] = useState(null);
   const [recording, setRecording] = useState(false);
   const [micUnsupported, setMicUnsupported] = useState(false);
 
+  // ritaglio
+  const [cropNatural, setCropNatural] = useState({ w: 0, h: 0 });
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const cropImgRef = useRef(null);
+  const cropDragRef = useRef(null);
+
+  // trascinamento decorazioni
+  const [dragging, setDragging] = useState(null); // { kind, style, x, y }
+  const decoratePhotoRef = useRef(null);
+
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
-  // Ascolta lo stato di login (utente entrato/uscito, link magico cliccato, ecc.)
   useEffect(() => {
     if (!configured) {
       setLoading(false);
@@ -624,7 +777,6 @@ export default function GiardinoSelvatico() {
     return () => listener.subscription.unsubscribe();
   }, [configured]);
 
-  // Carica gli animali salvati per l'utente loggato
   useEffect(() => {
     if (!configured || !session?.user) {
       if (!session) setLoading(false);
@@ -645,8 +797,7 @@ export default function GiardinoSelvatico() {
             id: row.id,
             name: row.name,
             photo: row.photo_url,
-            eyes: { x: Number(row.eyes_x), y: Number(row.eyes_y) },
-            mouth: { x: Number(row.mouth_x), y: Number(row.mouth_y) },
+            decorations: row.decorations || [],
             audioUrl: row.audio_url,
             x: 15 + Math.random() * 65,
             y: 25 + Math.random() * 45,
@@ -659,7 +810,6 @@ export default function GiardinoSelvatico() {
     })();
   }, [configured, session]);
 
-  // Movimento autonomo (solo visuale, non salvato)
   useEffect(() => {
     const WALK_DURATION = 2400;
     const interval = setInterval(() => {
@@ -685,17 +835,55 @@ export default function GiardinoSelvatico() {
     return () => clearInterval(interval);
   }, []);
 
+  // --- trascinamento decorazioni dal vassoio alla foto ---
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      const p = e.touches ? e.touches[0] : e;
+      setDragging((d) => d && { ...d, x: p.clientX, y: p.clientY });
+    };
+    const onUp = (e) => {
+      const p = e.changedTouches ? e.changedTouches[0] : e;
+      const rect = decoratePhotoRef.current?.getBoundingClientRect();
+      if (rect && p.clientX >= rect.left && p.clientX <= rect.right && p.clientY >= rect.top && p.clientY <= rect.bottom) {
+        const xPct = ((p.clientX - rect.left) / rect.width) * 100;
+        const yPct = ((p.clientY - rect.top) / rect.height) * 100;
+        setDraftDecorations((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), kind: dragging.kind, style: dragging.style, x: xPct, y: yPct },
+        ]);
+      }
+      setDragging(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [dragging]);
+
+  const startDrag = (kind, style, e) => {
+    e.preventDefault();
+    setDragging({ kind, style, x: e.clientX, y: e.clientY });
+  };
+
+  const removeDecoration = (id) => {
+    setDraftDecorations((prev) => prev.filter((d) => d.id !== id));
+  };
+
   const resetDraft = () => {
     setStep("photo");
-    setPointStage("eyes");
     setDraftPhotoFile(null);
     setDraftPhotoPreview(null);
-    setDraftEyes(null);
-    setDraftMouth(null);
+    setDraftDecorations([]);
     setDraftName("");
     setDraftAudioBlob(null);
     setDraftAudioPreviewUrl(null);
     setRecording(false);
+    setCropZoom(1);
+    setCropOffset({ x: 0, y: 0 });
+    setCropNatural({ w: 0, h: 0 });
   };
 
   const openModal = () => {
@@ -711,29 +899,87 @@ export default function GiardinoSelvatico() {
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    setDraftPhotoFile(file);
     const reader = new FileReader();
     reader.onload = () => {
       setDraftPhotoPreview(reader.result);
-      setStep("points");
+      setCropZoom(1);
+      setCropOffset({ x: 0, y: 0 });
+      setStep("crop");
     };
     reader.readAsDataURL(file);
   };
 
-  const handlePhotoTap = useCallback(
-    (e) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      if (pointStage === "eyes") {
-        setDraftEyes({ x, y });
-        setPointStage("mouth");
-      } else {
-        setDraftMouth({ x, y });
-      }
-    },
-    [pointStage]
-  );
+  // --- logica di ritaglio ---
+  const baseScale = () => {
+    const { w, h } = cropNatural;
+    if (!w || !h) return 1;
+    return Math.max(CROP_SIZE / w, CROP_SIZE / h);
+  };
+
+  const clampCropOffset = (offset, totalScale) => {
+    const displayW = cropNatural.w * totalScale;
+    const displayH = cropNatural.h * totalScale;
+    const minX = CROP_SIZE - displayW;
+    const minY = CROP_SIZE - displayH;
+    return { x: clamp(offset.x, minX, 0), y: clamp(offset.y, minY, 0) };
+  };
+
+  const onCropImgLoad = (e) => {
+    const w = e.target.naturalWidth;
+    const h = e.target.naturalHeight;
+    setCropNatural({ w, h });
+    const scale = Math.max(CROP_SIZE / w, CROP_SIZE / h);
+    setCropOffset({ x: (CROP_SIZE - w * scale) / 2, y: (CROP_SIZE - h * scale) / 2 });
+  };
+
+  const onCropZoomChange = (val) => {
+    const zoom = Number(val);
+    setCropZoom(zoom);
+    const totalScale = baseScale() * zoom;
+    setCropOffset((prev) => clampCropOffset(prev, totalScale));
+  };
+
+  const onCropPointerDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    cropDragRef.current = { startX: e.clientX, startY: e.clientY, startOffset: cropOffset };
+  };
+  const onCropPointerMove = (e) => {
+    if (!cropDragRef.current) return;
+    const dx = e.clientX - cropDragRef.current.startX;
+    const dy = e.clientY - cropDragRef.current.startY;
+    const totalScale = baseScale() * cropZoom;
+    const next = clampCropOffset(
+      { x: cropDragRef.current.startOffset.x + dx, y: cropDragRef.current.startOffset.y + dy },
+      totalScale
+    );
+    setCropOffset(next);
+  };
+  const onCropPointerUp = () => {
+    cropDragRef.current = null;
+  };
+
+  const confirmCrop = () => {
+    const totalScale = baseScale() * cropZoom;
+    const sx = -cropOffset.x / totalScale;
+    const sy = -cropOffset.y / totalScale;
+    const sSize = CROP_SIZE / totalScale;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = OUTPUT_SIZE;
+    canvas.height = OUTPUT_SIZE;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(cropImgRef.current, sx, sy, sSize, sSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+    canvas.toBlob(
+      (blob) => {
+        const file = new File([blob], "foto.jpg", { type: "image/jpeg" });
+        setDraftPhotoFile(file);
+        setDraftPhotoPreview(canvas.toDataURL("image/jpeg", 0.9));
+        setStep("decorate");
+      },
+      "image/jpeg",
+      0.9
+    );
+  };
 
   const startRecording = async () => {
     try {
@@ -754,12 +1000,10 @@ export default function GiardinoSelvatico() {
       setMicUnsupported(true);
     }
   };
-
   const stopRecording = () => {
     mediaRecorderRef.current && mediaRecorderRef.current.stop();
     setRecording(false);
   };
-
   const handleAudioFile = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -767,8 +1011,11 @@ export default function GiardinoSelvatico() {
     setDraftAudioPreviewUrl(URL.createObjectURL(file));
   };
 
+  const hasEye = draftDecorations.some((d) => d.kind === "eye");
+  const hasMouth = draftDecorations.some((d) => d.kind === "mouth");
+
   const addAnimal = async () => {
-    if (!draftPhotoFile || !draftEyes || !draftMouth || !session?.user) return;
+    if (!draftPhotoFile || !hasEye || !hasMouth || !session?.user) return;
     setSaving(true);
     try {
       const userId = session.user.id;
@@ -780,15 +1027,14 @@ export default function GiardinoSelvatico() {
         audioUrl = await uploadToStorage(`${userId}/${id}-audio.webm`, draftAudioBlob);
       }
 
+      const decorations = draftDecorations.map(({ kind, style, x, y }) => ({ kind, style, x, y }));
+
       const row = {
         id,
         user_id: userId,
         name: draftName.trim() || "Senza nome",
         photo_url: photoUrl,
-        eyes_x: draftEyes.x,
-        eyes_y: draftEyes.y,
-        mouth_x: draftMouth.x,
-        mouth_y: draftMouth.y,
+        decorations,
         audio_url: audioUrl,
       };
 
@@ -801,8 +1047,7 @@ export default function GiardinoSelvatico() {
           id,
           name: row.name,
           photo: photoUrl,
-          eyes: draftEyes,
-          mouth: draftMouth,
+          decorations,
           audioUrl,
           x: 15 + Math.random() * 65,
           y: 25 + Math.random() * 45,
@@ -942,37 +1187,140 @@ export default function GiardinoSelvatico() {
               </>
             )}
 
-            {step === "points" && draftPhotoPreview && (
+            {step === "crop" && draftPhotoPreview && (
               <>
-                <span className="gs-badge">{pointStage === "eyes" ? "Passo 1 di 2" : "Passo 2 di 2"}</span>
-                <h2 className="gs-step-title gs-heading">
-                  {pointStage === "eyes" ? "Dove sono gli occhi?" : "Dove è la bocca?"}
-                </h2>
-                <p className="gs-step-desc">
-                  {pointStage === "eyes"
-                    ? "Tocca la foto nel punto tra i due occhi."
-                    : "Ora tocca il punto della bocca. Più è grottesco, meglio è."}
-                </p>
-                <div className="gs-tap-photo" onClick={handlePhotoTap}>
-                  <img src={draftPhotoPreview} alt="anteprima" />
-                  {draftEyes && (
-                    <div className="gs-marker eyes" style={{ left: `${draftEyes.x}%`, top: `${draftEyes.y}%` }} />
-                  )}
-                  {draftMouth && (
-                    <div className="gs-marker mouth" style={{ left: `${draftMouth.x}%`, top: `${draftMouth.y}%` }} />
-                  )}
-                </div>
-                {draftEyes && draftMouth && (
-                  <button className="gs-primary-btn" style={{ marginTop: 16 }} onClick={() => setStep("details")}>
-                    <Check size={17} /> Continua
+                <div className="gs-step-head">
+                  <button className="gs-back-btn" onClick={() => setStep("photo")}>
+                    <ArrowLeft size={16} />
                   </button>
+                  <h2 className="gs-step-title gs-heading">Ritaglia la foto</h2>
+                </div>
+                <p className="gs-step-desc">
+                  Trascina per spostare, usa lo slider per ingrandire. L'animale userà
+                  questa inquadratura quadrata.
+                </p>
+                <div
+                  className="gs-crop-frame"
+                  onPointerDown={onCropPointerDown}
+                  onPointerMove={onCropPointerMove}
+                  onPointerUp={onCropPointerUp}
+                >
+                  <img
+                    ref={cropImgRef}
+                    src={draftPhotoPreview}
+                    alt="da ritagliare"
+                    crossOrigin="anonymous"
+                    onLoad={onCropImgLoad}
+                    style={{
+                      width: cropNatural.w ? `${cropNatural.w * baseScale() * cropZoom}px` : "auto",
+                      height: cropNatural.h ? `${cropNatural.h * baseScale() * cropZoom}px` : "auto",
+                      transform: `translate(${cropOffset.x}px, ${cropOffset.y}px)`,
+                    }}
+                  />
+                </div>
+                <div className="gs-crop-zoom-row">
+                  <ZoomIn size={18} />
+                  <input
+                    type="range"
+                    min="1"
+                    max="2.5"
+                    step="0.01"
+                    value={cropZoom}
+                    onChange={(e) => onCropZoomChange(e.target.value)}
+                  />
+                </div>
+                <button className="gs-primary-btn" onClick={confirmCrop}>
+                  <Check size={17} /> Continua
+                </button>
+              </>
+            )}
+
+            {step === "decorate" && draftPhotoPreview && (
+              <>
+                <div className="gs-step-head">
+                  <button className="gs-back-btn" onClick={() => setStep("crop")}>
+                    <ArrowLeft size={16} />
+                  </button>
+                  <h2 className="gs-step-title gs-heading">Occhi e bocca</h2>
+                </div>
+                <p className="gs-step-desc">
+                  Trascina occhi e bocca sulla foto, uno alla volta, dove vuoi tu. Tocca
+                  un elemento già posizionato per toglierlo.
+                </p>
+
+                <div className="gs-decorate-photo" ref={decoratePhotoRef}>
+                  <img src={draftPhotoPreview} alt="anteprima" />
+                  {draftDecorations.map((d) => (
+                    <div
+                      key={d.id}
+                      className={`gs-decor-wrapper gs-decor-${d.kind}-wrapper`}
+                      style={{ left: `${d.x}%`, top: `${d.y}%` }}
+                      onClick={() => removeDecoration(d.id)}
+                      title="Tocca per rimuovere"
+                    >
+                      <DecorShape kind={d.kind} style={d.style} />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="gs-tray-section">
+                  <p className="gs-tray-label">Occhi</p>
+                  <div className="gs-tray">
+                    {EYE_STYLES.map((s) => (
+                      <div
+                        key={s.id}
+                        className="gs-tray-item"
+                        onPointerDown={(e) => startDrag("eye", s.id, e)}
+                        title={s.label}
+                      >
+                        <div className="gs-tray-item-shape-eye" style={{ width: "100%", height: "100%" }}>
+                          <DecorShape kind="eye" style={s.id} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="gs-tray-section">
+                  <p className="gs-tray-label">Bocca</p>
+                  <div className="gs-tray">
+                    {MOUTH_STYLES.map((s) => (
+                      <div
+                        key={s.id}
+                        className="gs-tray-item"
+                        onPointerDown={(e) => startDrag("mouth", s.id, e)}
+                        title={s.label}
+                      >
+                        <div style={{ width: "70%", height: "45%" }}>
+                          <DecorShape kind="mouth" style={s.id} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="gs-primary-btn"
+                  style={{ marginTop: 18 }}
+                  onClick={() => setStep("details")}
+                  disabled={!hasEye || !hasMouth}
+                >
+                  <Check size={17} /> Continua
+                </button>
+                {(!hasEye || !hasMouth) && (
+                  <p className="gs-remove-hint">Aggiungi almeno un occhio e una bocca per continuare.</p>
                 )}
               </>
             )}
 
             {step === "details" && (
               <>
-                <h2 className="gs-step-title gs-heading">Nome e verso</h2>
+                <div className="gs-step-head">
+                  <button className="gs-back-btn" onClick={() => setStep("decorate")}>
+                    <ArrowLeft size={16} />
+                  </button>
+                  <h2 className="gs-step-title gs-heading">Nome e verso</h2>
+                </div>
                 <p className="gs-step-desc">Dagli un nome e, se vuoi, registra il suo verso.</p>
                 <input
                   className="gs-input"
@@ -1009,12 +1357,15 @@ export default function GiardinoSelvatico() {
                 <button className="gs-primary-btn" onClick={addAnimal} disabled={saving}>
                   <Check size={17} /> {saving ? "Salvataggio…" : "Aggiungi al giardino"}
                 </button>
-                <button className="gs-secondary-btn" onClick={() => setStep("points")} disabled={saving}>
-                  Torna indietro
-                </button>
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {dragging && (
+        <div className="gs-decor-ghost" style={{ left: dragging.x, top: dragging.y }}>
+          <DecorShape kind={dragging.kind} style={dragging.style} />
         </div>
       )}
     </div>
